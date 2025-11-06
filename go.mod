@@ -5,16 +5,12 @@ go 1.25.2
 require (
 	github.com/gofiber/fiber/v2 v2.52.9
 	github.com/lithammer/fuzzysearch v1.1.8
-	github.com/playwright-community/playwright-go v0.5200.1
 	modernc.org/sqlite v1.39.1
 )
 
 require (
 	github.com/andybalholm/brotli v1.1.0 // indirect
-	github.com/deckarep/golang-set/v2 v2.7.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/go-jose/go-jose/v3 v3.0.4 // indirect
-	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
