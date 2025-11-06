@@ -121,7 +121,7 @@ This software was built and tested by an idiot.
 
 ## 🐐 Credits 🐐
 
-Big thanks to Tim Nordenfur for [dom5api](https://github.com/gtim/dom5api) — a huge source of inspiration and the defacto predecessor.
+Big thanks to Tim Nordenfur for [dom5api](https://github.com/gtim/dom5api) — a huge source of inspiration and the defacto predecessor.  
 Big thanks for Toldi in assistance with the process.
 
 Created by Monkeydew.
