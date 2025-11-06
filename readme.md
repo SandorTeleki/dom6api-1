@@ -1,14 +1,12 @@
 # 🐐 Dominions 6 API by Monkeydew
 
-A fast in-memory **SQLite-powered API**  for _Dominions 6 Inspector_ data.  
+A fast in-memory **SQLite-powered API** for _Dominions 6 Inspector_ data.  
 Built with Go.  
 All game data (units, items, spells, sites, mercs, events), caputres of their UIs as an exposed queryable JSON REST API.
 
 ---
 
 ## Launch Modes
-
-### Build Mode (with scraping) ***CURRENTLY REMOVED**
 
 Uses Fetched data from the [dom6inspector GitHub](https://github.com/larzm42/dom6inspector) repo, runs a local web server, stored in SQLite.
 
@@ -18,42 +16,13 @@ Mac: `brew install go`
 Linux: `sudo apt install golang-go`
 Windows: https://go.dev/dl/ (and follow the instructions)
 
-Install required dependencies with:
-`go mod tidy`
-
-**Build mode:**
-`go build`
-then:
-`dom6api.exe build`
-This will:
-
-- Clones the inspector repo
-- Starts a local Python webserver (localhost:8001)
-- Waits until it’s live
-- Uses Playwright to render and extract all entities
-- Saves PNGs and data into Data/
-- Populates the database
-- Then starts the API at:
-  http://0.0.0.0:8002
-
 **No-Build Mode (API only):**
 This will skip scraping and launches only the API using existing data.
 `dom6api.exe`
 
-How Scraping Works:
-
-- Launches a headless Chromium instance via Playwright.
-- Loads the inspector web app (http://localhost:8001).
-- Iterates over each data category:
-  - Events, items, mercs, sites, spells, units
-- Sorts entities by ID and renders overlays via the in-page DMI.modctx.
-- Extracts key fields per category (ID, name, etc.).
-- Captures PNG screenshots of rendered overlays.
-- Inserts structured data into Data/dom6api.db.
-
 Outputs logs like:
 
-- 2025/10/25 12:36:04 /items/1/screenshot
+16:37:51 | 200 | 2.5538ms | 127.0.0.1 | GET | /items/1 | -
 
 Each table mirrors the inspector data:
 
@@ -101,8 +70,10 @@ returns image
 
 ## Compile
 
-Windows:
+Install required dependencies with:
 `go mod tidy`
+
+Windows:
 `go build -trimpath -ldflags="-s -w" -o dom6api.exe .`
 
 Linux (Ubuntu):

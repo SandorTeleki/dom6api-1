@@ -30,6 +30,7 @@ var (
 	cleanRe         = regexp.MustCompile(`[^a-zA-Z0-9 ]+`)
 	tableColumns    = map[string][]string{}
 	tableColumnSets = make(map[string]map[string]struct{})
+	logfile         = "dom6api.log"
 )
 
 func initDB(filename string, tables []string) (*sql.DB, error) {
@@ -165,7 +166,18 @@ func StartServer(dbFile, addr string) error {
 	})
 
 	app.Use(recover.New())
-	app.Use(logger.New())
+
+	file, err := os.OpenFile(logfile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("log file open: %w", err)
+	}
+	defer file.Close()
+
+	app.Use(logger.New(logger.Config{
+		Output: file,
+		Format: "[${time}] ${status} - ${method} ${path}\n",
+	}))
+
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "*",
 		AllowMethods: "GET,OPTIONS",
