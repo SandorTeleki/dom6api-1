@@ -1,8 +1,8 @@
 # 🐐 Dominions 6 API by Monkeydew
 
-A fast in-memory **SQLite-powered API** and **web scraper** for _Dominions 6 Inspector_ data.  
-Built with Go + Playwright.  
-Scrapes all game data (units, items, spells, sites, mercs, events), captures their icons, and exposes a queryable JSON REST API.
+A fast in-memory **SQLite-powered API**  for _Dominions 6 Inspector_ data.  
+Built with Go.  
+All game data (units, items, spells, sites, mercs, events), caputres of their UIs as an exposed queryable JSON REST API.
 
 ---
 
@@ -10,7 +10,7 @@ Scrapes all game data (units, items, spells, sites, mercs, events), captures the
 
 ### Build Mode (with scraping)
 
-Fetches the **latest data** from the [dom6inspector GitHub](https://github.com/larzm42/dom6inspector) repo, runs a local web server, scrapes everything, stores it in SQLite, and then launches the API.
+Uses Fetched data from the [dom6inspector GitHub](https://github.com/larzm42/dom6inspector) repo, runs a local web server, stored in SQLite.
 
 _Note:_
 If you don't have go installed yet, you can install it with:
@@ -122,6 +122,7 @@ This software was built and tested by an idiot.
 ## 🐐 Credits 🐐
 
 Big thanks to Tim Nordenfur for [dom5api](https://github.com/gtim/dom5api) — a huge source of inspiration and the defacto predecessor.
+Big thanks for Toldi in assistance with the process.
 
 Created by Monkeydew.
 Use, modify, and distribute freely.
