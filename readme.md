@@ -8,7 +8,7 @@ All game data (units, items, spells, sites, mercs, events), caputres of their UI
 
 ## Launch Modes
 
-### Build Mode (with scraping)
+### Build Mode (with scraping) ***CURRENTLY REMOVED**
 
 Uses Fetched data from the [dom6inspector GitHub](https://github.com/larzm42/dom6inspector) repo, runs a local web server, stored in SQLite.
 
