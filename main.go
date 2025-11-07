@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -27,7 +29,7 @@ const (
 
 var (
 	tables          = []string{"items", "spells", "units", "sites", "mercs", "events"}
-	cleanRe         = regexp.MustCompile(`[^a-zA-Z0-9 ]+`)
+	idRe            = regexp.MustCompile(`^[a-zA-Z0-9 ]{1,64}$`)
 	tableColumns    = map[string][]string{}
 	tableColumnSets = make(map[string]map[string]struct{})
 	logfile         = "dom6api.log"
@@ -41,7 +43,6 @@ func initDB(filename string, tables []string) (*sql.DB, error) {
 	if _, err := memDB.Exec(fmt.Sprintf("ATTACH DATABASE '%s' AS disk;", filename)); err != nil {
 		return nil, fmt.Errorf("attach disk DB: %w", err)
 	}
-
 	for _, table := range tables {
 		if _, err := memDB.Exec(fmt.Sprintf("CREATE TABLE %s AS SELECT * FROM disk.%s;", table, table)); err != nil {
 			return nil, fmt.Errorf("copy table %s: %w", table, err)
@@ -71,26 +72,37 @@ func initDB(filename string, tables []string) (*sql.DB, error) {
 
 func serveScreenshot(table string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		id := strings.TrimPrefix(c.Path(), "/"+table+"/")
-		id = strings.TrimSuffix(id, "/screenshot")
-		id = cleanRe.ReplaceAllString(id, "")
-		if id == "" {
-			return fiber.NewError(fiber.StatusBadRequest, "missing id")
+		id := c.Params("id")
+		if !idRe.MatchString(id) {
+			return fiber.NewError(fiber.StatusBadRequest, "invalid id")
 		}
-
-		path := filepath.Join("Data", table, id+".png")
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			return fiber.NewError(fiber.StatusNotFound, "file not found")
+		base := filepath.Join("Data", table)
+		path := filepath.Join(base, id+".png")
+		absBase, _ := filepath.Abs(base)
+		absPath, _ := filepath.Abs(path)
+		if !strings.HasPrefix(absPath, absBase+string(os.PathSeparator)) {
+			return fiber.NewError(fiber.StatusForbidden, "access denied")
 		}
-
+		fi, err := os.Stat(absPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return fiber.NewError(fiber.StatusNotFound, "file not found")
+			}
+			return fiber.NewError(fiber.StatusInternalServerError, "file error")
+		}
+		if fi.Size() > 10*1024*1024 {
+			return fiber.NewError(fiber.StatusForbidden, "file too large")
+		}
 		c.Type("png")
-		return c.SendFile(path)
+		f, _ := os.Open(absPath)
+		defer f.Close()
+		_, err = io.Copy(c.Response().BodyWriter(), f)
+		return err
 	}
 }
 
 func handleQuery(db *sql.DB, table string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		table = cleanRe.ReplaceAllString(table, "")
 		if _, ok := tableColumnSets[table]; !ok {
 			return fiber.NewError(fiber.StatusBadRequest, "unknown table")
 		}
@@ -102,12 +114,27 @@ func handleQuery(db *sql.DB, table string) fiber.Handler {
 		enableFuzzy := queryParams["match"] == "fuzzy"
 		delete(queryParams, "match")
 
-		stmt, err := db.Prepare(fmt.Sprintf("SELECT * FROM %s", table))
+		if len(queryParams) > 5 {
+			return fiber.NewError(fiber.StatusBadRequest, "too many params")
+		}
+		for k, v := range queryParams {
+			if len(v) > 256 {
+				return fiber.NewError(fiber.StatusBadRequest, "param too long")
+			}
+			if _, ok := tableColumnSets[table][k]; !ok {
+				return fiber.NewError(fiber.StatusBadRequest, fmt.Sprintf("unknown column '%s'", k))
+			}
+		}
+
+		ctx, cancel := context.WithTimeout(c.Context(), 3*time.Second)
+		defer cancel()
+		stmt, err := db.PrepareContext(ctx, fmt.Sprintf("SELECT * FROM %s", table))
 		if err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 		}
 		defer stmt.Close()
-		rows, err := stmt.Query()
+
+		rows, err := stmt.QueryContext(ctx)
 		if err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 		}
@@ -115,9 +142,17 @@ func handleQuery(db *sql.DB, table string) fiber.Handler {
 
 		cols, _ := rows.Columns()
 		results := []map[string]any{}
+		const maxResults = 200
+		const maxScanned = 10000
+		scanned := 0
 
 	rowsLoop:
 		for rows.Next() {
+			scanned++
+			if scanned > maxScanned {
+				break
+			}
+
 			values := make([]any, len(cols))
 			for i := range values {
 				values[i] = new(any)
@@ -137,25 +172,26 @@ func handleQuery(db *sql.DB, table string) fiber.Handler {
 			}
 
 			for key, vals := range queryParams {
-				if _, ok := tableColumnSets[table][key]; !ok {
-					return fiber.NewError(fiber.StatusBadRequest, fmt.Sprintf("unknown column '%s'", key))
-				}
 				colVal := strings.ToLower(fmt.Sprint(row[key]))
-				queryVal := strings.ToLower(cleanRe.ReplaceAllString(vals, ""))
+				queryVal := strings.ToLower(vals)
 				if (!enableFuzzy && colVal != queryVal) ||
 					(enableFuzzy && !strings.Contains(colVal, queryVal) && fuzzy.RankMatch(queryVal, colVal) < FuzzyScore) {
 					continue rowsLoop
 				}
 			}
+
 			row["image"] = fmt.Sprintf("/%s/%v/screenshot", table, row["id"])
 			results = append(results, row)
+			if len(results) >= maxResults {
+				break
+			}
 		}
+
 		return c.JSON(fiber.Map{table: results})
 	}
 }
 
 func StartServer(dbFile, addr string) error {
-
 	db, err := initDB(dbFile, tables)
 	if err != nil {
 		return fmt.Errorf("DB init: %w", err)
@@ -175,7 +211,6 @@ func StartServer(dbFile, addr string) error {
 
 	app.Use(logger.New(logger.Config{
 		Output: file,
-		Format: "[${time}] ${status} - ${method} ${path}\n",
 	}))
 
 	app.Use(cors.New(cors.Config{
@@ -190,22 +225,14 @@ func StartServer(dbFile, addr string) error {
 
 	for _, table := range tables {
 		t := table
-
-		// Screenshot route
-		app.Get("/"+t+"/:id/screenshot", func(c *fiber.Ctx) error {
-			return serveScreenshot(t)(c)
-		})
-
-		// Query route supporting both /table/:id and /table?column=value
+		app.Get("/"+t+"/:id/screenshot", serveScreenshot(t))
 		app.Get("/"+t, handleQuery(db, t))
 		app.Get("/"+t+"/:id", func(c *fiber.Ctx) error {
-			id := cleanRe.ReplaceAllString(c.Params("id"), "")
+			id := c.Params("id")
 			if id != "" {
-				// inject into query params as "id"
 				q := c.Queries()
 				q["id"] = id
 				c.Request().URI().SetQueryString("id=" + id)
-
 			}
 			return handleQuery(db, t)(c)
 		})
