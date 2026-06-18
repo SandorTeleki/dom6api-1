@@ -56,8 +56,8 @@ func initDB(filename string, tables []string) (*sql.DB, error) {
 		for rows.Next() {
 			var cid int
 			var name, ctype string
-			var notnull, dflt_value, pk any
-			if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt_value, &pk); err != nil {
+			var notnull, dfltValue, pk any
+			if err := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk); err != nil {
 				continue
 			}
 			cols = append(cols, name)
@@ -104,7 +104,7 @@ func serveScreenshot(table string) fiber.Handler {
 func handleQuery(db *sql.DB, table string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		if _, ok := tableColumnSets[table]; !ok {
-			return fiber.NewError(fiber.StatusBadRequest, "unknown table")
+			return fiber.NewError(fiber.StatusNotFound, "unknown table")
 		}
 		if c.Method() != "GET" {
 			return fiber.NewError(fiber.StatusMethodNotAllowed, "only GET allowed")
@@ -187,6 +187,10 @@ func handleQuery(db *sql.DB, table string) fiber.Handler {
 			}
 		}
 
+		if len(results) == 0 {
+			return fiber.NewError(fiber.StatusNotFound, "no matches found")
+		}
+
 		return c.JSON(fiber.Map{table: results})
 	}
 }
@@ -203,7 +207,7 @@ func StartServer(dbFile, addr string) error {
 
 	app.Use(recover.New())
 
-	file, err := os.OpenFile(logfile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	file, err := os.OpenFile(logfile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return fmt.Errorf("log file open: %w", err)
 	}
@@ -271,5 +275,4 @@ Use, modify, and distribute freely, with credit to Monkeydew — the G.O.A.T.
 	if err := StartServer(DBFile, fmt.Sprintf("localhost:%d", APIPort)); err != nil {
 		log.Fatal("Go server failed:", err)
 	}
-
 }
