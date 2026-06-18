@@ -68,6 +68,11 @@ returns image
 }
 ```
 
+## API Usage
+
+To scrape: cd into scrape and run "go run ." it does the rest.
+Right now the copy from scrape to api is manual
+
 ## Compile
 
 Install required dependencies with:
