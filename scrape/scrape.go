@@ -46,7 +46,6 @@ var (
 )
 
 func Scrape() {
-
 	pw, err := playwright.Run()
 	if err != nil {
 		log.Fatalf("main: could not start Playwright: %v", err)
@@ -56,7 +55,6 @@ func Scrape() {
 		Headless: playwright.Bool(true),
 		Args:     []string{"--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage"},
 	})
-
 	if err != nil {
 		log.Fatalf("main: could not launch browser: %v", err)
 	}
@@ -162,8 +160,78 @@ func Scrape() {
 	log.Println("main: Done. Closing browser...")
 }
 
-func populate(db *sql.DB, category string, entityMap map[string]interface{}) {
+// TODO have this tested and then insert into the table with its own wrapper in populate.
+func scrapeRandomPaths(page playwright.Page) (string, error) {
+	// Check if link exists
+	hasRandom, err := page.Evaluate(`() => {
+		const input = document.querySelector('input[value^="rndmagic "]');
+		return !!input;
+	}`)
+	if err != nil || !hasRandom.(bool) {
+		return "[]", err
+	}
 
+	// Click it
+	_, err = page.Evaluate(`() => {
+		const input = document.querySelector('input[value^="rndmagic "]');
+		input.closest('a').click();
+	}`)
+	if err != nil {
+		return "[]", err
+	}
+
+	// Scrape the popup table
+	result, err := page.Evaluate(`() => {
+		const rows = document.querySelectorAll('.overlay.popup .random-magic table.random-magic tr:not(.header-row)');
+		const paths = [];
+		
+		for (const row of rows) {
+			const cells = row.querySelectorAll('td');
+			if (cells.length !== 3) continue;
+			
+			const pathSpans = cells[0].querySelectorAll('span.pathicon');
+			const pathLetters = [];
+			for (const span of pathSpans) {
+				for (const cls of span.classList) {
+					if (cls.startsWith('Path_')) {
+						pathLetters.push(cls.replace('Path_', ''));
+						break;
+					}
+				}
+			}
+			
+			const level = parseInt(cells[1].textContent.trim().replace('+', ''), 10);
+			const chance = parseInt(cells[2].textContent.trim().replace('%', ''), 10);
+			
+			paths.push({chance: chance, levels: level, paths: pathLetters});
+		}
+		
+		return JSON.stringify(paths);
+	}`)
+	if err != nil {
+		return "[]", err
+	}
+
+	// Close the popup
+	_, _ = page.Evaluate(`() => {
+		const closeBtn = document.querySelector('.overlay.popup .close-button, .overlay.popup .overlay-close');
+		if (closeBtn) closeBtn.click();
+		else {
+			const popup = document.querySelector('.overlay.popup');
+			if (popup) popup.remove();
+		}
+	}`)
+
+	// Wait for popup to close
+	_, _ = page.WaitForSelector(`.overlay.popup .random-magic`, playwright.PageWaitForSelectorOptions{
+		State:   playwright.WaitForSelectorStateDetached,
+		Timeout: playwright.Float(2000),
+	})
+
+	return result.(string), nil
+}
+
+func populate(db *sql.DB, category string, entityMap map[string]interface{}) {
 	switch category {
 	case "spell":
 		if entityMap["gemcost"] == nil {

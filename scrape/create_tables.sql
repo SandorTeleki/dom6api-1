@@ -36,6 +36,11 @@ CREATE TABLE IF NOT EXISTS units (
 	coridermnr  INT
 );
 
+CREATE TABLE IF NOT EXISTS random_paths  (
+    unit_id     INT  NOT NULL PRIMARY KEY REFERENCES units(id) ON DELETE CASCADE,
+    randompaths TEXT NOT NULL  -- JSON array: [{chance, levels, paths}, ...]
+);
+
 CREATE TABLE IF NOT EXISTS spells (
 	id            INT  NOT NULL PRIMARY KEY,
 	name          TEXT NOT NULL COLLATE NOCASE,
